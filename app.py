@@ -74,7 +74,7 @@ if not st.session_state["user_logged_in"]:
             st.warning("Compila tutti i campi.")
     st.stop()
 
-# === MESSAGGIO DI CONFERMA PREMIUM (solo se attivato via link) ===
+# === MESSAGGIO DI CONFERMA PREMIUM ===
 if st.session_state["just_upgraded"]:
     st.success("🎉 Accesso Premium attivato! Puoi iniziare a usare tutte le funzionalità.")
     st.session_state["just_upgraded"] = False
@@ -110,9 +110,21 @@ with col2:
 
 st.markdown(f"🔁 Ricerche disponibili: **{MAX_RICERCHE - st.session_state['ricerche_effettuate']}**")
 
+if not is_premium:
+    with st.expander("🔓 Vuoi sbloccare più potenza?"):
+        st.markdown("""
+        ### ✨ Vantaggi Premium:
+        - 🔁 30 ricerche al mese
+        - 📇 60 contatti per ricerca
+        - 🧠 Dati completi: telefono, email, sito
+        - 💾 Download CSV completo
+
+        👉 [**Attiva Premium ora**](https://ticalcolo.gumroad.com/l/uqpgo)
+        """)
+
 if st.session_state["ricerche_effettuate"] >= MAX_RICERCHE:
     st.error("🚫 Hai esaurito le ricerche disponibili.")
-    st.markdown("[👉 Passa a Premium](https://buy.stripe.com/test_fZe00lahzdbM2WYcMN)")
+    st.markdown("[👉 Passa a Premium](https://ticalcolo.gumroad.com/l/uqpgo)")
     st.stop()
 
 # === FORM DI RICERCA ===
