@@ -3,3 +3,5 @@ googlemaps
 requests
 beautifulsoup4
 pandas
+supabase
+
