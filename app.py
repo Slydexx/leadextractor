@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from supabase import create_client
 
-# === CONFIGURAZIONE SUPABASE ===
+# === CONFIG SUPABASE ===
 SUPABASE_URL = "https://gsbfqagtbgafbsdzenxa.supabase.co"
 SUPABASE_KEY = (
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
@@ -15,55 +15,42 @@ SUPABASE_KEY = (
 )
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# === CONFIG STREAMLIT ===
+# === STREAMLIT CONFIG ===
 st.set_page_config(page_title="Lead Extractor", layout="centered")
 
-# === INIT SESSION STATE ===
+# === SESSION INIT ===
 if "user_logged_in" not in st.session_state:
     st.session_state["user_logged_in"] = False
 if "user_email" not in st.session_state:
     st.session_state["user_email"] = ""
-if "user_token" not in st.session_state:
-    st.session_state["user_token"] = None
 if "ricerche_effettuate" not in st.session_state:
     st.session_state["ricerche_effettuate"] = 0
+if "is_premium" not in st.session_state:
+    st.session_state["is_premium"] = False
+if "just_upgraded" not in st.session_state:
+    st.session_state["just_upgraded"] = False
 
-# === NAVIGAZIONE ===
-menu = st.sidebar.selectbox("📂 Navigazione", ["🏠 Home", "🔐 Login / Registrazione", "🚀 App"])
-
-# === HOME ===
-if menu == "🏠 Home":
-    st.title("📍 Google Maps Lead Extractor")
-    st.markdown("""
-    #### ✨ Trova clienti e aziende nella tua zona in pochi clic
-
-    Con questa app puoi:
-    - Cercare attività su Google Maps
-    - Estrarre **telefono, sito, email e indirizzo**
-    - Esportare i dati in CSV
-
-    #### 🎯 Ideale per:
-    - Agenzie marketing
-    - Rappresentanti commerciali
-    - Liberi professionisti
-
-    #### 🔓 Versione gratuita:
-    - 3 ricerche totali
-    - Max 4 contatti per ricerca
-
-    #### 👑 Versione Premium:
-    - 30 ricerche/mese
-    - 60 contatti per ricerca
-
-    👉 Usa la barra laterale per registrarti o accedere.
-    """)
+# === Sblocco PREMIUM via URL ===
+query_params = st.query_params
+if "email" in query_params and "access" in query_params:
+    if query_params["access"] == "premium":
+        email_from_link = query_params["email"]
+        supabase.table("user").upsert({
+            "email": email_from_link,
+            "premium": True,
+            "ricerche_effettuate": 0
+        }).execute()
+        st.session_state["just_upgraded"] = True
+        st.session_state["user_email"] = email_from_link
+        st.session_state["user_logged_in"] = True
 
 # === LOGIN / REGISTRAZIONE ===
-elif menu == "🔐 Login / Registrazione":
-    st.title("🔐 Login / Registrazione")
+st.markdown("<h2 style='text-align: center;'>📍 Lead Extractor</h2>", unsafe_allow_html=True)
+
+if not st.session_state["user_logged_in"]:
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
-    azione = st.radio("Seleziona un'opzione", ["Login", "Registrati"])
+    azione = st.radio("Accedi o Registrati", ["Login", "Registrati"], horizontal=True)
 
     if st.button("Continua"):
         if email and password:
@@ -71,99 +58,125 @@ elif menu == "🔐 Login / Registrazione":
                 if azione == "Registrati":
                     res = supabase.auth.sign_up({"email": email, "password": password})
                     if res.user:
-                        st.success("✅ Registrazione avvenuta con successo. Ora puoi effettuare il login.")
+                        st.success("✅ Registrazione avvenuta! Controlla la tua email per confermare.")
+                        st.stop()
                 else:
                     res = supabase.auth.sign_in_with_password({"email": email, "password": password})
                     if res.session:
                         st.session_state["user_logged_in"] = True
                         st.session_state["user_email"] = email
-                        st.session_state["user_token"] = res.session.access_token
-                        st.success("✅ Login effettuato con successo.")
                         st.rerun()
                     else:
-                        st.error("❌ Login fallito. Controlla email e password.")
+                        st.error("❌ Login fallito. Verifica le credenziali o conferma la mail.")
             except Exception as e:
                 st.error(f"Errore: {e}")
         else:
-            st.warning("Inserisci email e password.")
+            st.warning("Compila tutti i campi.")
+    st.stop()
 
-# === APP ===
-elif menu == "🚀 App":
-    if not st.session_state["user_logged_in"]:
-        st.warning("🔒 Devi effettuare il login per accedere all'app.")
-        st.stop()
+# === MESSAGGIO DI CONFERMA PREMIUM (solo se attivato via link) ===
+if st.session_state["just_upgraded"]:
+    st.success("🎉 Accesso Premium attivato! Puoi iniziare a usare tutte le funzionalità.")
+    st.session_state["just_upgraded"] = False
 
-    # === LIMITI DEMO ===
-    MAX_RICERCHE = 3
-    MAX_CONTATTI = 4
+# === RECUPERO STATO UTENTE ===
+user_email = st.session_state["user_email"]
+res = supabase.table("user").select("*").eq("email", user_email).single().execute()
 
-    st.title("📊 Estrai contatti da Google Maps")
-    st.info(f"DEMO GRATUITA: massimo {MAX_RICERCHE} ricerche con {MAX_CONTATTI} contatti ciascuna.")
+if res.data:
+    user_data = res.data
+    st.session_state["ricerche_effettuate"] = user_data.get("ricerche_effettuate", 0)
+    st.session_state["is_premium"] = user_data.get("premium", False)
+else:
+    supabase.table("user").insert({
+        "email": user_email,
+        "premium": False,
+        "ricerche_effettuate": 0
+    }).execute()
 
-    if st.session_state["ricerche_effettuate"] >= MAX_RICERCHE:
-        st.error("🚫 Hai raggiunto il limite della versione gratuita.")
-        st.markdown("[👉 Passa a Premium](https://buy.stripe.com/test_fZe00lahzdbM2WYcMN)")
-        st.stop()
+# === UI PREMIUM BADGE + LIMITI ===
+is_premium = st.session_state["is_premium"]
+MAX_RICERCHE = 30 if is_premium else 3
+MAX_CONTATTI = 60 if is_premium else 4
 
-    gmaps = googlemaps.Client(key="AIzaSyCAaPuraZRkHip3QAT39F-Mi2rHsZjFmQg")
+col1, col2 = st.columns([0.7, 0.3])
+with col1:
+    st.markdown(f"👋 Ciao **{user_email}**")
+with col2:
+    st.markdown(
+        f"<div style='text-align:right;'>{'👑 <b>Premium</b>' if is_premium else '🧪 <b>Demo</b>'}</div>",
+        unsafe_allow_html=True
+    )
 
-    query = st.text_input("🔍 Tipo di attività", placeholder="Es: Ristorante, Estetista")
-    location = st.text_input("📍 Località", placeholder="Es: Roma, Milano")
+st.markdown(f"🔁 Ricerche disponibili: **{MAX_RICERCHE - st.session_state['ricerche_effettuate']}**")
 
-    if st.button("Estrai contatti"):
-        if query and location:
-            st.session_state["ricerche_effettuate"] += 1
-            with st.spinner("Estrazione in corso..."):
-                try:
-                    results = gmaps.places(query=f"{query} a {location}")
-                    business_data = []
+if st.session_state["ricerche_effettuate"] >= MAX_RICERCHE:
+    st.error("🚫 Hai esaurito le ricerche disponibili.")
+    st.markdown("[👉 Passa a Premium](https://buy.stripe.com/test_fZe00lahzdbM2WYcMN)")
+    st.stop()
 
-                    for place in results.get("results", [])[:MAX_CONTATTI]:
-                        name = place.get("name")
-                        place_id = place.get("place_id")
-                        details = gmaps.place(place_id)["result"]
+# === FORM DI RICERCA ===
+gmaps = googlemaps.Client(key="AIzaSyCAaPuraZRkHip3QAT39F-Mi2rHsZjFmQg")
+query = st.text_input("🔍 Tipo di attività", placeholder="Es: Estetista, Ristorante")
+location = st.text_input("📍 Località", placeholder="Es: Roma, Milano")
 
-                        address = details.get("formatted_address") or details.get("vicinity") or "Non disponibile"
+if st.button("Estrai contatti"):
+    if query and location:
+        st.session_state["ricerche_effettuate"] += 1
+        supabase.table("user").update({
+            "ricerche_effettuate": st.session_state["ricerche_effettuate"]
+        }).eq("email", user_email).execute()
 
-                        phone_number = details.get("international_phone_number") or \
-                                       details.get("formatted_phone_number") or "Non disponibile"
+        with st.spinner("📡 Estrazione in corso..."):
+            try:
+                results = gmaps.places(query=f"{query} a {location}")
+                business_data = []
 
-                        telefono_finale = "Non disponibile"
-                        if phone_number.startswith("+39 3"):
-                            telefono_finale = phone_number
-                        elif phone_number != "Non disponibile":
-                            telefono_finale = phone_number
+                for place in results.get("results", [])[:MAX_CONTATTI]:
+                    name = place.get("name")
+                    place_id = place.get("place_id")
+                    details = gmaps.place(place_id)["result"]
 
-                        website = details.get("website", "Non disponibile")
-                        email_estratto = "Non disponibile"
+                    address = details.get("formatted_address") or details.get("vicinity") or "Non disponibile"
+                    phone_number = details.get("international_phone_number") or \
+                                   details.get("formatted_phone_number") or "Non disponibile"
 
-                        try:
-                            if website != "Non disponibile":
-                                html = requests.get(website, timeout=5).text
-                                soup = BeautifulSoup(html, "html.parser")
-                                for a in soup.find_all("a", href=True):
-                                    if "mailto:" in a["href"]:
-                                        email_estratto = a["href"].split("mailto:")[1].split("?")[0]
-                                        break
-                        except:
-                            pass
+                    telefono_finale = "Non disponibile"
+                    if phone_number.startswith("+39 3"):
+                        telefono_finale = phone_number
+                    elif phone_number != "Non disponibile":
+                        telefono_finale = phone_number
 
-                        business_data.append({
-                            "Nome": name,
-                            "Indirizzo": address,
-                            "Telefono": telefono_finale,
-                            "Sito Web": website,
-                            "Email": email_estratto
-                        })
+                    website = details.get("website", "Non disponibile")
+                    email_estratto = "Non disponibile"
 
-                    if business_data:
-                        df = pd.DataFrame(business_data)
-                        st.dataframe(df)
-                        csv = df.to_csv(index=False).encode("utf-8-sig")
-                        st.download_button("📥 Scarica contatti CSV", data=csv, file_name="contatti.csv", mime="text/csv")
-                    else:
-                        st.warning("😕 Nessun risultato trovato.")
-                except Exception as e:
-                    st.error(f"❌ Errore durante l’estrazione: {e}")
-        else:
-            st.warning("⚠️ Inserisci sia la categoria che la località.")
+                    try:
+                        if website != "Non disponibile":
+                            html = requests.get(website, timeout=5).text
+                            soup = BeautifulSoup(html, "html.parser")
+                            for a in soup.find_all("a", href=True):
+                                if "mailto:" in a["href"]:
+                                    email_estratto = a["href"].split("mailto:")[1].split("?")[0]
+                                    break
+                    except:
+                        pass
+
+                    business_data.append({
+                        "Nome": name,
+                        "Indirizzo": address,
+                        "Telefono": telefono_finale,
+                        "Sito Web": website,
+                        "Email": email_estratto
+                    })
+
+                if business_data:
+                    df = pd.DataFrame(business_data)
+                    st.dataframe(df)
+                    csv = df.to_csv(index=False).encode("utf-8-sig")
+                    st.download_button("📥 Scarica CSV", data=csv, file_name="contatti.csv", mime="text/csv")
+                else:
+                    st.warning("😕 Nessun risultato trovato.")
+            except Exception as e:
+                st.error(f"❌ Errore durante l’estrazione: {e}")
+    else:
+        st.warning("⚠️ Inserisci categoria e località.")
