@@ -4,33 +4,46 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 
-# === CONFIG STREAMLIT ===
+# === CONFIG ===
 st.set_page_config(page_title="Google Maps Lead Extractor", layout="centered")
 st.title("📍 Google Maps Lead Extractor")
 
-st.markdown("""
-Questo strumento ti permette di cercare attività commerciali su **Google Maps**  
-e ottenere **contatti utili** come **telefono, email, sito web e indirizzo**.
+# === DEMO INFO ===
+MAX_RICERCHE = 3
+MAX_CONTATTI = 4
 
----
+# === SESSION STATE PER TRACCIARE USO ===
+if "ricerche_effettuate" not in st.session_state:
+    st.session_state["ricerche_effettuate"] = 0
 
-👉 Inserisci una categoria e una località per iniziare la ricerca.
-""")
+st.markdown(f"""
+💡 <span style='color:orange'><strong>DEMO GRATUITA</strong>:</span><br>
+• Massimo <strong>{MAX_RICERCHE}</strong> ricerche totali<br>
+• Fino a <strong>{MAX_CONTATTI}</strong> contatti per ogni ricerca<br><br>
+
+👑 Vuoi la versione completa?<br>
+➡️ <a href="https://buy.stripe.com/test_fZe00lahzdbM2WYcMN" target="_blank"><strong>Passa a Premium</strong> (30 ricerche / 60 contatti)</a>
+""", unsafe_allow_html=True)
 
 # === Google Maps Client ===
 gmaps = googlemaps.Client(key="AIzaSyCAaPuraZRkHip3QAT39F-Mi2rHsZjFmQg")
 
-# === MODULO DI RICERCA ===
+# === FORM RICERCA ===
+if st.session_state["ricerche_effettuate"] >= MAX_RICERCHE:
+    st.warning("🚫 Hai raggiunto il numero massimo di ricerche gratuite. Passa a Premium per continuare.")
+    st.stop()
+
 query = st.text_input("🔍 Tipo di attività", placeholder="Es: Estetista, Ristorante")
 location = st.text_input("📍 Località", placeholder="Es: Roma, Milano")
 
 if st.button("Estrai contatti"):
     if query and location:
+        st.session_state["ricerche_effettuate"] += 1
         with st.spinner("🔍 Estrazione in corso..."):
             try:
                 results = gmaps.places(query=f"{query} a {location}")
                 business_data = []
-                for place in results.get("results", []):
+                for place in results.get("results", [])[:MAX_CONTATTI]:
                     name = place.get("name")
                     place_id = place.get("place_id")
                     details = gmaps.place(place_id)["result"]
@@ -41,12 +54,11 @@ if st.button("Estrai contatti"):
                     phone_number = details.get("international_phone_number") or \
                                    details.get("formatted_phone_number") or "Non disponibile"
 
-                    # === Priorità a cellulare ===
                     telefono_finale = "Non disponibile"
-                    if phone_number.startswith("+39 3"):  # Cellulare italiano
-                        telefono_finale = phone_number
+                    if phone_number.startswith("+39 3"):
+                        telefono_finale = phone_number  # cellulare
                     elif phone_number != "Non disponibile":
-                        telefono_finale = phone_number  # Usa fisso solo se non c'è il cellulare
+                        telefono_finale = phone_number  # fisso se non c'è altro
 
                     website = details.get("website", "Non disponibile")
                     email_estratto = "Non disponibile"
@@ -55,13 +67,12 @@ if st.button("Estrai contatti"):
                         if website != "Non disponibile":
                             html = requests.get(website, timeout=5).text
                             soup = BeautifulSoup(html, "html.parser")
-                            links = soup.find_all("a", href=True)
-                            for a in links:
+                            for a in soup.find_all("a", href=True):
                                 href = a["href"]
                                 if "mailto:" in href:
                                     email_estratto = href.split("mailto:")[1].split("?")[0]
                                     break
-                    except Exception:
+                    except:
                         pass
 
                     business_data.append({
@@ -83,4 +94,3 @@ if st.button("Estrai contatti"):
                 st.error(f"❌ Errore durante l’estrazione: {e}")
     else:
         st.warning("⚠️ Inserisci sia la categoria che la località.")
-aa
