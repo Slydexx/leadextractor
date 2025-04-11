@@ -7,7 +7,12 @@ from supabase import create_client
 
 # === CONFIGURAZIONE SUPABASE ===
 SUPABASE_URL = "https://gsbfqagtbgafbsdzenxa.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdzYmZxYWd0YmdhZmJzZHplbnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQzODA4NjYsImV4cCI6MjA1OTk1Njg2Nn_
+SUPABASE_KEY = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdzYmZxYWd0YmdhZmJzZHplbnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQzODA4NjYs"
+    "ImV4cCI6MjA1OTk1Njg2Nn0."
+    "aabjFnBgMagRIWVTBm_MU7hrDq8rJHmSoIc7EVy8-EA"
+)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # === CONFIG STREAMLIT ===
